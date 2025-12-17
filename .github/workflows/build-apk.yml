@@ -68,6 +68,16 @@ jobs:
             echo "No keystore provided (KEYSTORE_FILE secret or keystore.b64). Release build may fail if signing required."
           fi
 
+      - name: Validate keystore
+        run: |
+          if [ -f key.properties ]; then
+            echo "Validating keystore..."
+            source key.properties
+            keytool -list -keystore "$storeFile" -storepass "$storePassword" -alias "$keyAlias" || (echo "Keystore validation failed. Check your keystore file and passwords." && exit 1)
+          else
+            echo "No key.properties found, skipping keystore validation."
+          fi
+
       - name: Build Android release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
