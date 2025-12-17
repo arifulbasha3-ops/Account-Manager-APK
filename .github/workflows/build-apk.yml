@@ -72,7 +72,7 @@ jobs:
         run: |
           if [ -f android/key.properties ]; then
             echo "Validating keystore..."
-            cd android && source key.properties
+            cd android/app && source ../key.properties
             keytool -list -keystore "$storeFile" -storepass "$storePassword" -alias "$keyAlias" || (echo "Keystore validation failed. Check your keystore file and passwords." && exit 1)
           else
             echo "No android/key.properties found, skipping keystore validation."
