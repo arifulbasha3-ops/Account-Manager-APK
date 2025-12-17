@@ -53,14 +53,14 @@ jobs:
           if [ -n "${KEYSTORE_FILE:-}" ]; then
             echo "Decoding keystore from secret KEYSTORE_FILE"
             printf "%s" "$KEYSTORE_FILE" | base64 --decode > android/app/keystore.jks
-            echo "storeFile=android/app/keystore.jks" > key.properties
+            echo "storeFile=app/keystore.jks" > key.properties
             echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
             echo "keyAlias=${KEY_ALIAS}" >> key.properties
             echo "keyPassword=${KEY_PASSWORD}" >> key.properties
           elif [ -f keystore.b64 ]; then
             echo "Decoding keystore from keystore.b64 in repo"
             base64 --decode keystore.b64 > android/app/keystore.jks
-            echo "storeFile=android/app/keystore.jks" > key.properties
+            echo "storeFile=app/keystore.jks" > key.properties
             echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
             echo "keyAlias=${KEY_ALIAS}" >> key.properties
             echo "keyPassword=${KEY_PASSWORD}" >> key.properties
