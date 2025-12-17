@@ -29,11 +29,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android SDK and Build Tools
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 33
-          arch: x86_64
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Install npm dependencies
         run: npm ci
