@@ -53,29 +53,29 @@ jobs:
           if [ -n "${KEYSTORE_FILE:-}" ]; then
             echo "Decoding keystore from secret KEYSTORE_FILE"
             printf "%s" "$KEYSTORE_FILE" | base64 --decode > android/app/keystore.jks
-            echo "storeFile=app/keystore.jks" > key.properties
-            echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
-            echo "keyAlias=${KEY_ALIAS}" >> key.properties
-            echo "keyPassword=${KEY_PASSWORD}" >> key.properties
+            echo "storeFile=app/keystore.jks" > android/key.properties
+            echo "storePassword=${KEYSTORE_PASSWORD}" >> android/key.properties
+            echo "keyAlias=${KEY_ALIAS}" >> android/key.properties
+            echo "keyPassword=${KEY_PASSWORD}" >> android/key.properties
           elif [ -f keystore.b64 ]; then
             echo "Decoding keystore from keystore.b64 in repo"
             base64 --decode keystore.b64 > android/app/keystore.jks
-            echo "storeFile=app/keystore.jks" > key.properties
-            echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
-            echo "keyAlias=${KEY_ALIAS}" >> key.properties
-            echo "keyPassword=${KEY_PASSWORD}" >> key.properties
+            echo "storeFile=app/keystore.jks" > android/key.properties
+            echo "storePassword=${KEYSTORE_PASSWORD}" >> android/key.properties
+            echo "keyAlias=${KEY_ALIAS}" >> android/key.properties
+            echo "keyPassword=${KEY_PASSWORD}" >> android/key.properties
           else
             echo "No keystore provided (KEYSTORE_FILE secret or keystore.b64). Release build may fail if signing required."
           fi
 
       - name: Validate keystore
         run: |
-          if [ -f key.properties ]; then
+          if [ -f android/key.properties ]; then
             echo "Validating keystore..."
-            source key.properties
+            cd android && source key.properties
             keytool -list -keystore "$storeFile" -storepass "$storePassword" -alias "$keyAlias" || (echo "Keystore validation failed. Check your keystore file and passwords." && exit 1)
           else
-            echo "No key.properties found, skipping keystore validation."
+            echo "No android/key.properties found, skipping keystore validation."
           fi
 
       - name: Build Android release APK
