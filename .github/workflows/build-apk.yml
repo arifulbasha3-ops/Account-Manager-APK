@@ -1,0 +1,82 @@
+name: Build Android APK
+
+# This workflow builds the web app, syncs Capacitor, decodes the keystore
+# from the KEYSTORE_FILE secret (base64), writes key.properties and builds
+# a release APK. It uploads the APK as an artifact named `app-release-apk`.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK and Build Tools
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Copy web assets to Android
+        run: |
+          npx cap sync android || npm run android:copy
+
+      - name: Decode keystore and write key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEYSTORE_FILE:-}" ]; then
+            echo "Decoding keystore from secret KEYSTORE_FILE"
+            printf "%s" "$KEYSTORE_FILE" | base64 --decode > android/app/keystore.jks
+            echo "storeFile=android/app/keystore.jks" > key.properties
+            echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
+            echo "keyAlias=${KEY_ALIAS}" >> key.properties
+            echo "keyPassword=${KEY_PASSWORD}" >> key.properties
+          elif [ -f keystore.b64 ]; then
+            echo "Decoding keystore from keystore.b64 in repo"
+            base64 --decode keystore.b64 > android/app/keystore.jks
+            echo "storeFile=android/app/keystore.jks" > key.properties
+            echo "storePassword=${KEYSTORE_PASSWORD}" >> key.properties
+            echo "keyAlias=${KEY_ALIAS}" >> key.properties
+            echo "keyPassword=${KEY_PASSWORD}" >> key.properties
+          else
+            echo "No keystore provided (KEYSTORE_FILE secret or keystore.b64). Release build may fail if signing required."
+          fi
+
+      - name: Build Android release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
