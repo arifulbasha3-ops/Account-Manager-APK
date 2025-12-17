@@ -39,8 +39,6 @@ export const pushToSheets = async (transactions: Transaction[], accounts: Accoun
       }),
     });
     
-    // Note: Due to redirects in Google Apps Script, we check if the request was successful
-    // Even if we can't read the body due to CORS, a status of 200 or an opaque response usually means success.
     saveSyncConfig({ ...config, lastSynced: new Date().toISOString() });
     return true;
   } catch (error) {

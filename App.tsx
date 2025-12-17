@@ -41,7 +41,10 @@ import {
   CreditCard,
   CloudUpload,
   CloudDownload,
-  Cloud
+  Cloud,
+  Wifi,
+  WifiOff,
+  CloudCheck
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
@@ -559,6 +562,8 @@ const App: React.FC = () => {
   const [aiAdvice, setAiAdvice] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'pending' | 'syncing' | 'error' | 'none'>('none');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const [activeTab, setActiveTab] = useState<'input' | 'bazar' | 'bazar-report' | 'expense-report' | 'lending' | 'history' | 'dashboard' | 'full-report'>('input');
   const [dashboardPeriod, setDashboardPeriod] = useState<'month' | 'year'>('month');
@@ -572,10 +577,65 @@ const App: React.FC = () => {
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  // Sync Logic
+  const syncTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
     saveStoredTransactions(transactions);
     saveStoredAccounts(accounts);
-  }, [transactions, accounts]);
+    
+    // Auto-push debounced
+    const config = getSyncConfig();
+    if (config && config.url) {
+        if (isOnline) {
+            setSyncStatus('pending');
+            if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = window.setTimeout(triggerAutoPush, 2000);
+        } else {
+            setSyncStatus('pending');
+        }
+    } else {
+        setSyncStatus('none');
+    }
+  }, [transactions, accounts, isOnline]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+        setIsOnline(true);
+        const config = getSyncConfig();
+        if (config && config.url) triggerAutoPush();
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial sync status check
+    const config = getSyncConfig();
+    if (config && config.url) setSyncStatus('synced');
+    else setSyncStatus('none');
+
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
+    };
+  }, []);
+
+  const triggerAutoPush = async () => {
+    if (!navigator.onLine) {
+        setSyncStatus('pending');
+        return;
+    }
+    
+    setSyncStatus('syncing');
+    const success = await pushToSheets(transactions, accounts);
+    if (success) {
+        setSyncStatus('synced');
+    } else {
+        setSyncStatus('error');
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -635,8 +695,13 @@ const App: React.FC = () => {
       setIsSyncing(true);
       const success = await pushToSheets(transactions, accounts);
       setIsSyncing(false);
-      if (success) alert("Data pushed to Google Sheets successfully!");
-      else alert("Sync failed. Check your Web App URL in settings.");
+      if (success) {
+          alert("Data pushed to Google Sheets successfully!");
+          setSyncStatus('synced');
+      } else {
+          alert("Sync failed. Check your Web App URL in settings.");
+          setSyncStatus('error');
+      }
   };
 
   const handlePullSync = async () => {
@@ -647,6 +712,7 @@ const App: React.FC = () => {
           if (confirm("Remote data retrieved. Overwrite local data with data from Google Sheets?")) {
               setTransactions(data.transactions);
               setAccounts(data.accounts);
+              setSyncStatus('synced');
           }
       } else {
           alert("Could not retrieve data. Check your Web App URL in settings.");
@@ -718,24 +784,48 @@ const App: React.FC = () => {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 p-2 rounded-lg"><Wallet className="w-5 h-5 text-white" /></div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">SmartSpend</h1>
+            <div>
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 leading-none mb-1">Account Manager</h1>
+              <div className="flex items-center gap-2">
+                {isOnline ? <Wifi className="w-2.5 h-2.5 text-emerald-500" /> : <WifiOff className="w-2.5 h-2.5 text-rose-500" />}
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    syncStatus === 'synced' ? 'text-emerald-500' :
+                    syncStatus === 'syncing' ? 'text-blue-500' :
+                    syncStatus === 'pending' ? 'text-amber-500' :
+                    syncStatus === 'error' ? 'text-rose-500' : 'text-gray-400'
+                }`}>
+                    {syncStatus === 'synced' && 'Synced'}
+                    {syncStatus === 'syncing' && 'Syncing...'}
+                    {syncStatus === 'pending' && (isOnline ? 'Pending Auto Sync' : 'Waiting for network')}
+                    {syncStatus === 'error' && 'Sync Error'}
+                    {syncStatus === 'none' && 'Local Only'}
+                </span>
+                {syncStatus === 'syncing' && <RefreshCw className="w-2 h-2 animate-spin text-blue-500" />}
+                {syncStatus === 'synced' && <CloudCheck className="w-2.5 h-2.5 text-emerald-500" />}
+              </div>
+            </div>
           </div>
 
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg relative">
                 {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {!isOnline && <div className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-gray-800" />}
+                {syncStatus === 'pending' && isOnline && <div className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full border border-white dark:border-gray-800 animate-pulse" />}
             </button>
             {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden py-2 z-50">
                     {getSyncConfig() && (
                         <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-2">
-                            <p className="text-[10px] font-bold text-emerald-500 uppercase flex items-center gap-1"><Cloud className="w-3 h-3" /> Sheets Connected</p>
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase flex items-center gap-1">
+                                <Cloud className="w-3 h-3" /> Sheets Connected
+                            </p>
+                            <p className="text-[9px] text-gray-400 mb-2">Automatic sync is active.</p>
                             <div className="flex gap-2 mt-2">
-                                <button onClick={handlePushSync} disabled={isSyncing} className="flex-1 flex items-center justify-center gap-1 text-[10px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 py-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800 transition-colors">
-                                    <CloudUpload className="w-3 h-3" /> Push
+                                <button onClick={handlePushSync} disabled={isSyncing || !isOnline} className="flex-1 flex items-center justify-center gap-1 text-[10px] bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 py-1.5 rounded-lg border border-emerald-100 dark:border-emerald-800 transition-colors disabled:opacity-50">
+                                    <CloudUpload className="w-3 h-3" /> Force Push
                                 </button>
-                                <button onClick={handlePullSync} disabled={isSyncing} className="flex-1 flex items-center justify-center gap-1 text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 transition-colors">
-                                    <CloudDownload className="w-3 h-3" /> Pull
+                                <button onClick={handlePullSync} disabled={isSyncing || !isOnline} className="flex-1 flex items-center justify-center gap-1 text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 transition-colors disabled:opacity-50">
+                                    <CloudDownload className="w-3 h-3" /> Pull Data
                                 </button>
                             </div>
                         </div>
@@ -753,6 +843,11 @@ const App: React.FC = () => {
       </header>
 
       <main>
+        {!isOnline && (
+            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-4 py-2 text-[10px] text-center font-bold uppercase tracking-widest border-b border-amber-200 dark:border-amber-800 animate-pulse">
+                Offline Mode: Changes will sync once connected
+            </div>
+        )}
         {activeTab === 'input' && (
             <div className="max-w-xl mx-auto px-4 py-8 pb-24">
                 <div className="mb-8 text-center">
@@ -786,7 +881,7 @@ const App: React.FC = () => {
                     <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-6 text-white shadow-lg h-fit">
                         <div className="flex items-center gap-2 mb-4"><Bot className="w-6 h-6" /><h3 className="font-bold text-lg">AI Financial Advisor</h3></div>
                         {aiAdvice ? <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 text-sm leading-relaxed"><ReactMarkdown>{aiAdvice}</ReactMarkdown></div> : <p className="text-indigo-100 text-sm mb-6">Get personalized insights powered by Gemini AI.</p>}
-                        <button onClick={handleGetAdvice} disabled={isAiLoading} className="w-full bg-white text-indigo-600 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2">{isAiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />} {isAiLoading ? 'Analyzing...' : 'Generate Insights'}</button>
+                        <button onClick={handleGetAdvice} disabled={isAiLoading || !isOnline} className="w-full bg-white text-indigo-600 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50">{isAiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />} {isAiLoading ? 'Analyzing...' : isOnline ? 'Generate Insights' : 'AI Offline'}</button>
                     </div>
                 </div>
             </div>

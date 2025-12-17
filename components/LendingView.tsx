@@ -11,7 +11,9 @@ import {
   ChevronRight,
   CalendarDays,
   X,
-  Check
+  Check,
+  Edit2,
+  AlertTriangle
 } from 'lucide-react';
 import { Transaction, Category, AccountType, Account } from '../types';
 
@@ -39,7 +41,11 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
 
-  // Edit State
+  // Edit Person Name State
+  const [renamingPerson, setRenamingPerson] = useState<{oldName: string, newName: string} | null>(null);
+  const [deletingPerson, setDeletingPerson] = useState<string | null>(null);
+
+  // Edit Transaction State
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [editDesc, setEditDesc] = useState('');
   const [editAmount, setEditAmount] = useState('');
@@ -128,6 +134,39 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
     }
   }
 
+  const handleRenamePerson = () => {
+    if (!renamingPerson || !renamingPerson.newName.trim()) return;
+    
+    const { oldName, newName } = renamingPerson;
+    
+    // Iterate and update all related transactions
+    transactions.forEach(t => {
+      const data = getPersonData(t);
+      if (data && data.name === oldName) {
+        const newDescription = t.description.replace(oldName, newName.trim());
+        onUpdateTransaction({ ...t, description: newDescription });
+      }
+    });
+
+    setRenamingPerson(null);
+  };
+
+  const handleDeletePerson = () => {
+    if (!deletingPerson) return;
+    
+    const targetName = deletingPerson;
+    
+    // Delete all associated transactions
+    transactions.forEach(t => {
+      const data = getPersonData(t);
+      if (data && data.name === targetName) {
+        onDeleteTransaction(t.id);
+      }
+    });
+
+    setDeletingPerson(null);
+  };
+
   const startEditing = (t: Transaction) => {
     setEditingTx(t);
     setEditDesc(t.description);
@@ -170,6 +209,57 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
   if (!selectedPerson) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 pb-24 relative">
+         {/* Rename/Edit Person Modal */}
+         {renamingPerson && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm p-5 animate-in zoom-in-95 duration-200">
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-4">Edit Person Name</h3>
+                    <input 
+                        type="text" 
+                        value={renamingPerson.newName}
+                        onChange={(e) => setRenamingPerson({ ...renamingPerson, newName: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 mb-6"
+                        placeholder="Enter new name"
+                        autoFocus
+                    />
+                    <div className="flex justify-between items-center">
+                        <button 
+                            onClick={() => {
+                                setDeletingPerson(renamingPerson.oldName);
+                                setRenamingPerson(null);
+                            }} 
+                            className="text-red-500 hover:text-red-600 text-sm font-medium flex items-center gap-1"
+                        >
+                            <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setRenamingPerson(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
+                            <button onClick={handleRenamePerson} className="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors">Update</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+         )}
+
+         {/* Delete Person Modal */}
+         {deletingPerson && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-3 text-red-600 mb-4">
+                        <AlertTriangle className="w-6 h-6" />
+                        <h3 className="font-bold">Delete History?</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                        Are you sure you want to delete all lending and recovery records for <strong>{deletingPerson}</strong>? This cannot be undone.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => setDeletingPerson(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                        <button onClick={handleDeletePerson} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-sm shadow-red-200 dark:shadow-none">Delete All</button>
+                    </div>
+                </div>
+            </div>
+         )}
+
          <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <UserMinus className="w-6 h-6 text-amber-500" />
@@ -191,7 +281,7 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
             </div>
             <button 
               onClick={() => setIsAddingNew(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-white px-3 rounded-lg flex items-center gap-1 shadow-sm"
+              className="bg-amber-500 hover:bg-amber-600 text-white px-3 rounded-lg flex items-center gap-1 shadow-sm transition-colors"
             >
                <Plus className="w-5 h-5" />
             </button>
@@ -213,7 +303,7 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
                      <button 
                         onClick={handleAddNewPerson}
                         disabled={!newPersonName}
-                        className="bg-amber-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-amber-700 font-medium"
+                        className="bg-amber-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:bg-amber-700 font-medium transition-colors"
                      >
                          Start
                      </button>
@@ -226,7 +316,7 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
                 <div 
                   key={p.name}
                   onClick={() => setSelectedPerson(p.name)}
-                  className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-between cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
+                  className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-between cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 transition-colors group"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-sm">
@@ -249,7 +339,18 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
                                  </span>
                              </p>
                          </div>
-                         <ChevronRight className="w-5 h-5 text-gray-300 dark:text-gray-600" />
+                         <div className="flex items-center gap-1">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRenamingPerson({ oldName: p.name, newName: p.name });
+                                }}
+                                className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Edit2 className="w-4 h-4" />
+                            </button>
+                            <ChevronRight className="w-5 h-5 text-gray-300 dark:text-gray-600" />
+                         </div>
                     </div>
                 </div>
             ))}
@@ -273,7 +374,7 @@ const LendingView: React.FC<LendingViewProps> = ({ transactions, accounts, onAdd
 
   return (
       <div className="max-w-2xl mx-auto px-4 py-8 pb-24 relative">
-          {/* Edit Modal */}
+          {/* Edit Transaction Modal */}
          {editingTx && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
