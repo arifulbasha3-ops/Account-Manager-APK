@@ -78,11 +78,11 @@ jobs:
           mkdir -p release_keystore
           echo "$KEYSTORE_BASE64" | base64 --decode > release_keystore/keystore.jks
           cat > android/keystore.properties <<'EOF'
-storeFile=release_keystore/keystore.jks
-storePassword=${KEYSTORE_PASSWORD}
-keyAlias=${KEY_ALIAS}
-keyPassword=${KEY_PASSWORD}
-EOF
+          storeFile=release_keystore/keystore.jks
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
