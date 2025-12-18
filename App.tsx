@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
+import { StatusBar } from '@capacitor/status-bar';
 
 import { Transaction, TransactionType, FinancialSummary, AccountType, Category, Account } from './types';
 import { getStoredTransactions, saveStoredTransactions, getStoredAccounts, saveStoredAccounts } from './services/storage';
@@ -576,6 +577,11 @@ const App: React.FC = () => {
   const [showAccounts, setShowAccounts] = useState(false);
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Show status bar
+  useEffect(() => {
+    StatusBar.show();
+  }, []);
 
   // Sync Logic
   const syncTimerRef = useRef<number | null>(null);
